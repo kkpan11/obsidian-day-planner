@@ -1,13 +1,10 @@
-I work on the plugin in my spare time, and I appreciate any kind of support!
+- 🪲 [Report bugs and suggest features](https://github.com/ivan-lednev/obsidian-day-planner/issues)
+- ❓ [Ask questions](https://github.com/ivan-lednev/obsidian-day-planner/discussions/new?category=q-a)
+- 👍 [Give thumbs up to issues important to you](https://github.com/ivan-lednev/obsidian-day-planner/issues)
+- 🪛 [Submit pull-requests](./CONTRIBUTING.md)
+- ❤️ Support the project directly:
+    - <a href="https://www.buymeacoffee.com/machineelf" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
 
-✨ [Check out latest updates](https://github.com/ivan-lednev/obsidian-day-planner/releases)<br>
-🪲 [Report bugs and suggest features](https://github.com/ivan-lednev/obsidian-day-planner/issues)<br>
-❓ [Ask questions](https://github.com/ivan-lednev/obsidian-day-planner/discussions/new?category=q-a)<br>
-👍 [Give thumbs up to issues important to you](https://github.com/ivan-lednev/obsidian-day-planner/issues)<br>
-🪛 [Submit pull-requests](./CONTRIBUTING.md). If you don't know where to start, create an issue and I'll gladly give you some directions<br>
-❤️ Support the project directly:
-
-<a href="https://www.buymeacoffee.com/machineelf" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 60px !important;width: 217px !important;" ></a>
 
 ## Table of contents
 

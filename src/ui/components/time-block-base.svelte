@@ -1,30 +1,47 @@
 <script lang="ts">
-  import { UnscheduledTask } from "../../types";
+  import { getContext, type Snippet } from "svelte";
+  import { fromStore } from "svelte/store";
+
+  import { settings } from "../../global-store/settings";
+  import type { Task } from "../../task-types";
+  import type { ObsidianContext } from "../../types";
   import { tappable } from "../actions/tappable";
-  import { ActionArray, useActions } from "../actions/use-actions";
-  import { useColorOverride } from "../hooks/use-color-override";
+  import type { ActionArray } from "../actions/use-actions";
+  import { useActions } from "../actions/use-actions";
+  import { getColorOverride } from "../hooks/get-color-override.svelte";
 
-  export let task: UnscheduledTask;
-  export let use: ActionArray = [];
+  import { obsidianContext } from "./../../constants";
 
-  $: override = useColorOverride(task);
-  $: backgroundColor =
-    $override || "var(--time-block-bg-color, var(--background-primary))";
+  const {
+    children,
+    task,
+    use = [],
+  }: { children: Snippet; task: Task; use: ActionArray } = $props();
+
+  const { isDarkMode } = getContext<ObsidianContext>(obsidianContext);
+
+  const override = $derived(
+    getColorOverride(
+      task,
+      fromStore(isDarkMode).current,
+      fromStore(settings).current,
+    ),
+  );
 </script>
 
 <div class="padding">
   <div
-    style:background-color={backgroundColor}
+    style:background-color={override}
     class="content"
-    on:tap
     on:longpress
-    on:pointerup
     on:pointerenter
     on:pointerleave
+    on:pointerup
+    on:tap
     use:tappable
     use:useActions={use}
   >
-    <slot />
+    {@render children()}
   </div>
 </div>
 

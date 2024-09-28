@@ -1,6 +1,14 @@
-import { fromMarkdown } from "mdast-util-from-markdown";
+import { isNotVoid } from "typed-assert";
 
-import { toMarkdown } from "./mdast";
+import {
+  compareByTimestampInText,
+  findHeadingWithChildren,
+  fromMarkdown,
+  isList,
+  listIndentationSpacesToTabs,
+  sortListsRecursively,
+  toMarkdown,
+} from "./mdast";
 
 test("roundtripping doesn't mess up Obsidian-styled markdown", () => {
   const input = `# [[Heading]]
@@ -18,53 +26,110 @@ test("roundtripping doesn't mess up Obsidian-styled markdown", () => {
 `;
   const parsed = fromMarkdown(input);
 
-  expect(toMarkdown(parsed)).toEqual(input);
+  expect(toMarkdown(parsed)).toEqual(listIndentationSpacesToTabs(input));
 });
 
-test.todo("extract a task");
+test("Find heading position", () => {
+  const input = `1
+2
 
-// function addTaskUnderHeading(root: Root, addition: Root) {}
-//
-// test("add a task under a present heading", () => {
-//   const contents = `# Plan
-//
-// - [ ] 10:00 - 11:00 Wake up
-// `;
-//   const newTask = "- [ ] 11:00 - 12:00 Eat";
-//
-//   const parsed = fromMarkdown(contents);
-//   const parsedTask = fromMarkdown(newTask);
-//
-//   const result = addTaskUnderHeading(parsed, parsedTask);
-// });
-//
-// function sortByTime(list: List) {
-//   const now = window.moment();
-//   const sorted = list.children.slice().sort((a, b) => {
-//     const aTime = parseTimestamp(toMarkdown(a), now);
-//     const bTime = parseTimestamp(toMarkdown(b), now);
-//
-//     return aTime.isBefore(bTime) ? -1 : 1;
-//   });
-//
-//   return {
-//     ...list,
-//     children: sorted,
-//   };
-// }
-//
-// test("sort tasks by time", () => {
-//   const contents = `- [ ] 10:00 Wake up
-// - [ ] 9:00 Sweet dreams
-// `;
-//
-//   const result = `- [ ] 9:00 Sweet dreams
-// - [ ] 10:00 Wake up
-// `;
-//
-//   const parsed = fromMarkdown(contents);
-//   const list = parsed.children[0];
-//   const sorted = sortByTime(list);
-//
-//   expect(toMarkdown(sorted)).toEqual(result);
-// });
+# Target
+
+text
+
+## Sub-heading
+
+sub-heading text
+
+# Next heading
+
+text
+`;
+
+  const expected = `# Target
+
+text
+
+## Sub-heading
+
+sub-heading text
+`;
+
+  const mdastRoot = fromMarkdown(input);
+
+  const headingWithChildren = findHeadingWithChildren(mdastRoot, "Target");
+
+  isNotVoid(headingWithChildren);
+
+  expect(toMarkdown(headingWithChildren)).toBe(expected);
+});
+
+test("Sort lists recursively", () => {
+  const input = `- b
+- c
+    - a
+    - c
+    - b
+- a
+`;
+
+  const expected = `- a
+- b
+- c
+    - a
+    - b
+    - c
+`;
+
+  const tree = fromMarkdown(input);
+  const list = tree.children[0];
+
+  isList(list);
+
+  const actual = toMarkdown(sortListsRecursively(list));
+
+  expect(actual).toBe(listIndentationSpacesToTabs(expected));
+});
+
+test("Sort lists by time", () => {
+  const input = `- 10:00 - 11:00 b
+- No time
+- 09:00 - 10:00 a
+- 11:00 - 12:00 c
+- 13:00 d
+`;
+
+  const expected = `- 09:00 - 10:00 a
+- 10:00 - 11:00 b
+- 11:00 - 12:00 c
+- 13:00 d
+- No time
+`;
+
+  const tree = fromMarkdown(input);
+  const list = tree.children[0];
+
+  isList(list);
+
+  const actual = toMarkdown(
+    sortListsRecursively(list, compareByTimestampInText),
+  );
+
+  expect(actual).toBe(expected);
+});
+
+test.todo("Tabs don't get replaced with spaces on roundtripping");
+
+test("Does not throw errors on empty lists", () => {
+  const input = `- b
+- 
+- a
+`;
+
+  const tree = fromMarkdown(input);
+  const list = tree.children[0];
+
+  isList(list);
+
+  expect(() => toMarkdown(sortListsRecursively(list))).not.toThrow();
+});

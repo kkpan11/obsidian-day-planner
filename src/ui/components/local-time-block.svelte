@@ -3,10 +3,10 @@
   import { getContext } from "svelte";
 
   import { obsidianContext } from "../../constants";
-  import { ObsidianContext, Task } from "../../types";
+  import type { LocalTask, WithPlacing, WithTime } from "../../task-types";
+  import type { ObsidianContext } from "../../types";
   import { copy } from "../../util/task-utils";
-  import { isTouchEvent } from "../../util/util";
-  import { EditHandlers } from "../hooks/use-edit/create-edit-handlers";
+  import type { EditHandlers } from "../hooks/use-edit/create-edit-handlers";
   import { EditMode } from "../hooks/use-edit/types";
   import { useFloatingUi } from "../hooks/use-floating-ui";
 
@@ -17,7 +17,7 @@
   import ResizeControls from "./resize-controls.svelte";
   import ScheduledTimeBlock from "./scheduled-time-block.svelte";
 
-  export let task: Task;
+  export let task: WithPlacing<WithTime<LocalTask>>;
   export let onGripMouseDown: EditHandlers["handleGripMouseDown"];
   export let onResizerMouseDown: EditHandlers["handleResizerMouseDown"];
   export let onFloatingUiPointerDown: (event: PointerEvent) => void;
@@ -52,17 +52,11 @@
 <ScheduledTimeBlock
   {task}
   use={[drag.anchorSetup, resize.anchorSetup, resizeFromTop.anchorSetup]}
-  on:tap={onMouseUp}
   on:longpress={() => {
     navigator.vibrate(100);
     isDragActive.set(true);
     isResizeActive.set(true);
     isResizeFromTopActive.set(true);
-  }}
-  on:pointerup={(event) => {
-    if (!isTouchEvent(event)) {
-      onMouseUp();
-    }
   }}
   on:pointerenter={(event) => {
     drag.handleAnchorPointerEnter(event);
@@ -74,6 +68,7 @@
     resize.handleAnchorPointerLeave(event);
     resizeFromTop.handleAnchorPointerLeave(event);
   }}
+  on:pointerup={onMouseUp}
 >
   <MarkdownBlockContent {task}>
     <RenderedMarkdown {task} />

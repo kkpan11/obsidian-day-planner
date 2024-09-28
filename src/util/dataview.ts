@@ -1,6 +1,7 @@
-import { Moment } from "moment/moment";
+import type { Moment } from "moment";
 import { getDateFromPath } from "obsidian-daily-notes-interface";
 import { DataArray, DateTime, STask } from "obsidian-dataview";
+import { isNotVoid } from "typed-assert";
 
 import {
   defaultDayFormat,
@@ -8,11 +9,11 @@ import {
   defaultDurationMinutes,
   indentBeforeTaskParagraph,
 } from "../constants";
-import { getTimeFromSTask } from "../parser/parser";
-import { timeFromStartRegExp } from "../regexp";
-import { Task, TaskTokens } from "../types";
+import { getTimeFromLine } from "../parser/parser";
+import type { DayPlannerSettings } from "../settings";
+import type { FileLine, LocalTask, TaskTokens, WithTime } from "../task-types";
 
-import { ClockMoments, toTime } from "./clock";
+import { type ClockMoments, toTime } from "./clock";
 import { getId } from "./id";
 import { getMinutesSinceMidnight } from "./moment";
 import { deleteProps } from "./properties";
@@ -34,15 +35,22 @@ export function textToString(node: Node) {
   return `${node.symbol} ${status}${deleteProps(node.text)}\n`;
 }
 
-// todo: remove duplication: toMarkdown
 export function toString(node: Node, indentation = "") {
   let result = `${indentation}${textToString(node)}`;
 
   for (const child of node.children) {
-    if (!child.scheduled && !timeFromStartRegExp.test(child.text)) {
-      // todo (minor): handle custom indentation (spaces of differing lengths)
-      result += toString(child, `\t${indentation}`);
-    }
+    // todo (minor): handle custom indentation (spaces of differing lengths)
+    result += toString(child, `\t${indentation}`);
+  }
+
+  return result;
+}
+
+export function getLines(node, result: Array<FileLine> = []) {
+  result.push({ text: node.text, line: node.line, task: node.task });
+
+  for (const child of node.children) {
+    getLines(child, result);
   }
 
   return result;
@@ -50,10 +58,12 @@ export function toString(node: Node, indentation = "") {
 
 export function toUnscheduledTask(sTask: STask, day: Moment) {
   return {
+    startTime: day,
     durationMinutes: defaultDurationMinutes,
     symbol: sTask.symbol,
     status: sTask.status,
     text: toString(sTask),
+    lines: getLines(sTask),
     location: {
       path: sTask.path,
       line: sTask.line,
@@ -63,19 +73,31 @@ export function toUnscheduledTask(sTask: STask, day: Moment) {
   };
 }
 
-export function toTask(sTask: STask, day: Moment): Task {
-  const { startTime, durationMinutes } = getTimeFromSTask({
+export function toTask(
+  sTask: STask,
+  day: Moment,
+  settings: DayPlannerSettings,
+): WithTime<LocalTask> {
+  const parsedTime = getTimeFromLine({
     line: sTask.text,
     day,
   });
+
+  isNotVoid(
+    parsedTime,
+    `Unexpectedly received an STask without a timestamp: ${sTask.text}`,
+  );
+
+  const { startTime, durationMinutes = settings.defaultDurationMinutes } =
+    parsedTime;
 
   return {
     startTime,
     symbol: sTask.symbol,
     status: sTask.status,
     text: toString(sTask),
+    lines: getLines(sTask),
     durationMinutes,
-    // todo: delete
     startMinutes: getMinutesSinceMidnight(startTime),
     location: {
       path: sTask.path,

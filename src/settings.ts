@@ -3,6 +3,7 @@ import { DEFAULT_DAILY_NOTE_FORMAT } from "obsidian-daily-notes-interface";
 
 export interface IcalConfig {
   name: string;
+  email?: string;
   url: string;
   color: string;
 }
@@ -12,6 +13,8 @@ export interface ColorOverride {
   color: string;
   darkModeColor: string;
 }
+
+export const eventFormats = ["task", "bullet"] as const;
 
 export interface DayPlannerSettings {
   progressIndicator: "pie" | "bar" | "none";
@@ -32,6 +35,7 @@ export interface DayPlannerSettings {
   dataviewSource: string;
   extendDurationUntilNext: boolean;
   defaultDurationMinutes: number;
+  minimalDurationMinutes: number;
   showTimestampInTaskBlock: boolean;
   showUncheduledTasks: boolean;
   showUnscheduledNestedTasks: boolean;
@@ -45,6 +49,8 @@ export interface DayPlannerSettings {
   colorOverrides: Array<ColorOverride>;
   releaseNotes: boolean;
   taskStatusOnCreation: string;
+  eventFormatOnCreation: (typeof eventFormats)[number];
+  sortTasksInPlanAfterEdit: boolean;
 }
 
 export const defaultSettings: DayPlannerSettings = {
@@ -67,6 +73,7 @@ export const defaultSettings: DayPlannerSettings = {
   dataviewSource: "",
   extendDurationUntilNext: false,
   defaultDurationMinutes: 30,
+  minimalDurationMinutes: 10,
   showTimestampInTaskBlock: false,
   showUncheduledTasks: true,
   showUnscheduledNestedTasks: true,
@@ -79,6 +86,8 @@ export const defaultSettings: DayPlannerSettings = {
   colorOverrides: [],
   releaseNotes: true,
   taskStatusOnCreation: " ",
+  eventFormatOnCreation: "task",
+  sortTasksInPlanAfterEdit: false,
 };
 
 export const defaultSettingsForTests = {

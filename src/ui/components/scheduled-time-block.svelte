@@ -1,16 +1,25 @@
 <script lang="ts">
+  import type { Snippet } from "svelte";
+
   import { currentTime } from "../../global-store/current-time";
   import { settings } from "../../global-store/settings";
-  import { Task } from "../../types";
-  import { ActionArray } from "../actions/use-actions";
+  import type { Task, WithPlacing, WithTime } from "../../task-types";
+  import type { ActionArray } from "../actions/use-actions";
   import { useTaskVisuals } from "../hooks/use-task-visuals";
 
   import TimeBlockBase from "./time-block-base.svelte";
 
-  export let task: Task;
-  export let use: ActionArray = [];
+  const {
+    children,
+    task,
+    use = [],
+  }: {
+    children: Snippet;
+    task: WithPlacing<WithTime<Task>>;
+    use?: ActionArray;
+  } = $props();
 
-  $: ({
+  const {
     height,
     offset,
     width,
@@ -18,10 +27,12 @@
     backgroundColor,
     borderColor,
     properContrastColors,
-  } = useTaskVisuals(task, {
-    settings,
-    currentTime,
-  }));
+  } = $derived(
+    useTaskVisuals(task, {
+      settings,
+      currentTime,
+    }),
+  );
 </script>
 
 <TimeBlockBase
@@ -43,5 +54,5 @@
   on:pointerenter
   on:pointerleave
 >
-  <slot />
+  {@render children()}
 </TimeBlockBase>

@@ -1,14 +1,19 @@
-import type { Task } from "../../../../types";
+import type { DayPlannerSettings } from "../../../../settings";
+import type { LocalTask, WithTime } from "../../../../task-types";
 import { getEndMinutes } from "../../../../util/task-utils";
 import { toSpliced } from "../../../../util/to-spliced";
 
 export function resize(
-  baseline: Task[],
-  editTarget: Task,
+  baseline: WithTime<LocalTask>[],
+  editTarget: WithTime<LocalTask>,
   cursorTime: number,
-): Task[] {
+  settings: DayPlannerSettings,
+): WithTime<LocalTask>[] {
   const index = baseline.findIndex((task) => task.id === editTarget.id);
-  const durationMinutes = cursorTime - editTarget.startMinutes;
+  const durationMinutes = Math.max(
+    cursorTime - editTarget.startMinutes,
+    settings.minimalDurationMinutes,
+  );
   const updated = {
     ...editTarget,
     durationMinutes,
@@ -18,12 +23,16 @@ export function resize(
 }
 
 export function resizeFromTop(
-  baseline: Task[],
-  editTarget: Task,
+  baseline: WithTime<LocalTask>[],
+  editTarget: WithTime<LocalTask>,
   cursorTime: number,
-): Task[] {
+  settings: DayPlannerSettings,
+): WithTime<LocalTask>[] {
   const index = baseline.findIndex((task) => task.id === editTarget.id);
-  const durationMinutes = getEndMinutes(editTarget) - cursorTime;
+  const durationMinutes = Math.max(
+    getEndMinutes(editTarget) - cursorTime,
+    settings.minimalDurationMinutes,
+  );
 
   const updated = {
     ...editTarget,

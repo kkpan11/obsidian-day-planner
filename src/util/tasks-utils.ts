@@ -1,11 +1,19 @@
-import { difference, differenceBy, mergeWith } from "lodash/fp";
-import { Moment } from "moment/moment";
+import { difference, mergeWith } from "lodash/fp";
+import type { Moment } from "moment/moment";
 import {
   DEFAULT_DAILY_NOTE_FORMAT,
   getDateFromPath,
 } from "obsidian-daily-notes-interface";
 
-import { Diff, Task, DayToTasks, TasksForDay, UnscheduledTask } from "../types";
+import {
+  type DayToEditableTasks,
+  type DayToTasks,
+  type Diff,
+  isRemote,
+  type LocalTask,
+  type TasksForDay,
+  type WithTime,
+} from "../task-types";
 
 import {
   isEqualTask,
@@ -17,18 +25,11 @@ export function getEmptyRecordsForDay(): TasksForDay {
   return { withTime: [], noTime: [] };
 }
 
-export function getTasksWithTime(tasks: DayToTasks) {
+export function getTasksWithTime(tasks: DayToEditableTasks) {
   return Object.values(tasks).flatMap(({ withTime }) => withTime);
 }
 
-export function getFlatTasks(tasks: DayToTasks) {
-  return Object.values(tasks).flatMap(({ withTime, noTime }) => [
-    ...withTime,
-    ...noTime,
-  ]);
-}
-
-export function removeTask(task: Task, tasks: TasksForDay) {
+export function removeTask(task: WithTime<LocalTask>, tasks: TasksForDay) {
   return {
     ...tasks,
     noTime: tasks.noTime.filter((t) => t.id !== task.id),
@@ -36,14 +37,14 @@ export function removeTask(task: Task, tasks: TasksForDay) {
   };
 }
 
-export function addTaskWithTime(task: Task, tasks: TasksForDay) {
+export function addTaskWithTime(task: WithTime<LocalTask>, tasks: TasksForDay) {
   return {
     ...tasks,
     withTime: [...tasks.withTime, task],
   };
 }
 
-export function moveToTimed(task: Task, tasks: TasksForDay) {
+export function moveToTimed(task: WithTime<LocalTask>, tasks: TasksForDay) {
   const withRemoved = removeTask(task, tasks);
   return { ...withRemoved, withTime: [...withRemoved.withTime, task] };
 }
@@ -52,7 +53,11 @@ export function getDayKey(day: Moment) {
   return day.format(DEFAULT_DAILY_NOTE_FORMAT);
 }
 
-export function moveTaskToDay(baseline: DayToTasks, task: Task, day: Moment) {
+export function moveTaskToDay(
+  baseline: DayToTasks,
+  task: WithTime<LocalTask>,
+  day: Moment,
+) {
   const sourceKey = getDayKey(task.startTime);
   const destKey = getDayKey(day);
   const source = baseline[sourceKey];
@@ -67,7 +72,7 @@ export function moveTaskToDay(baseline: DayToTasks, task: Task, day: Moment) {
 
 export function moveTaskToColumn(
   day: Moment,
-  task: Task,
+  task: WithTime<LocalTask>,
   baseline: DayToTasks,
 ) {
   if (day.isSame(task.startTime, "day")) {
@@ -82,7 +87,8 @@ export function moveTaskToColumn(
   return moveTaskToDay(baseline, task, day);
 }
 
-export function getTasksWithUpdatedDayProp(tasks: DayToTasks) {
+// TODO: remove duplication
+export function getTasksWithUpdatedDayProp(tasks: DayToEditableTasks) {
   return Object.entries(tasks)
     .flatMap(([dayKey, tasks]) =>
       tasks.withTime.map((task) => ({ dayKey, task })),
@@ -100,52 +106,87 @@ export function getTasksWithUpdatedDayProp(tasks: DayToTasks) {
     });
 }
 
-// TODO: remove duplication
-export function getTasksInDailyNotesWithUpdatedDay(tasks: DayToTasks) {
+export function getTasksInDailyNotesWithUpdatedDay(
+  tasks: DayToTasks,
+): Array<{ dayKey: string; task: WithTime<LocalTask> }> {
   return Object.entries(tasks)
     .flatMap(([dayKey, tasks]) =>
       tasks.withTime.map((task) => ({ dayKey, task })),
     )
-    .filter(({ dayKey, task }) => {
+    .filter((pair): pair is { dayKey: string; task: WithTime<LocalTask> } => {
+      const { task, dayKey } = pair;
+
+      if (isRemote(task)) {
+        return false;
+      }
+
       const dateFromPath = task.location?.path
         ? getDateFromPath(task.location?.path, "day")
         : null;
 
-      return (
-        !task.isGhost && dayKey !== getDayKey(task.startTime) && dateFromPath
+      return Boolean(
+        !task.isGhost && dayKey !== getDayKey(task.startTime) && dateFromPath,
       );
     });
 }
 
-function getPristine(flatBaseline: Task[], flatNext: Task[]) {
+function getPristine(
+  flatBaseline: WithTime<LocalTask>[],
+  flatNext: WithTime<LocalTask>[],
+) {
   return flatNext.filter((task) =>
     flatBaseline.find((baselineTask) => isEqualTask(task, baselineTask)),
   );
 }
 
-function getCreatedTasks(base: UnscheduledTask[], next: UnscheduledTask[]) {
-  return differenceBy((task) => task.id, next, base);
-}
-
-function getTasksWithUpdatedTime(base: Task[], next: Task[]) {
+function getTasksWithUpdatedTime(
+  base: WithTime<LocalTask>[],
+  next: WithTime<LocalTask>[],
+) {
   const pristine = getPristine(base, next);
 
   return difference(next, pristine).filter((task) => !task.isGhost);
 }
 
+function getEditableTasks(dayToTasks: DayToTasks) {
+  const filteredEntries = Object.entries(dayToTasks).map(
+    ([dayKey, tasks]) =>
+      [
+        dayKey,
+        {
+          noTime: tasks.noTime.filter(
+            (task): task is LocalTask => !isRemote(task),
+          ),
+          withTime: tasks.withTime.filter(
+            (task): task is WithTime<LocalTask> => !isRemote(task),
+          ),
+        },
+      ] as const,
+  );
+
+  return Object.fromEntries<{
+    withTime: WithTime<LocalTask>[];
+    noTime: LocalTask[];
+  }>(filteredEntries);
+}
+
 export function getDiff(base: DayToTasks, next: DayToTasks) {
+  const editableBase = getEditableTasks(base);
+  const editableNext = getEditableTasks(next);
+
   return {
     updatedTime: getTasksWithUpdatedTime(
-      getTasksWithTime(base),
-      getTasksWithTime(next),
+      getTasksWithTime(editableBase),
+      getTasksWithTime(editableNext),
     ),
-    updatedDay: getTasksWithUpdatedDayProp(next),
-    moved: getTasksInDailyNotesWithUpdatedDay(next),
-    created: getCreatedTasks(getFlatTasks(base), getFlatTasks(next)),
+    updatedDay: getTasksWithUpdatedDayProp(editableNext),
+    moved: getTasksInDailyNotesWithUpdatedDay(editableNext),
+    created: Object.values(editableNext)
+      .flatMap(({ withTime }) => withTime)
+      .filter((task) => task.isGhost),
   };
 }
 
-// todo: this syncs task state with text, it should be derived
 export function updateText(diff: Diff) {
   return {
     created: diff.created.map(updateTaskText),

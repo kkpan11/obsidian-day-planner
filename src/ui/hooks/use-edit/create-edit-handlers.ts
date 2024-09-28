@@ -1,13 +1,15 @@
-import { Moment } from "moment/moment";
+import type { Moment } from "moment/moment";
 import { getDateFromPath } from "obsidian-daily-notes-interface";
-import { get, Readable, Writable } from "svelte/store";
+import type { Readable, Writable } from "svelte/store";
+import { get } from "svelte/store";
 
 import { ObsidianFacade } from "../../../service/obsidian-facade";
-import { DayPlannerSettings } from "../../../settings";
-import { Task, UnscheduledTask } from "../../../types";
+import type { DayPlannerSettings } from "../../../settings";
+import type { LocalTask, WithTime } from "../../../task-types";
 import { createTask } from "../../../util/task-utils";
 
-import { EditMode, EditOperation } from "./types";
+import type { EditOperation } from "./types";
+import { EditMode } from "./types";
 
 export interface UseEditHandlersProps {
   startEdit: (operation: EditOperation) => void;
@@ -15,7 +17,7 @@ export interface UseEditHandlersProps {
   day: Moment;
   obsidianFacade: ObsidianFacade;
   cursorMinutes: Readable<number>;
-  editOperation: Writable<EditOperation>;
+  editOperation: Writable<EditOperation | undefined>;
   settings: Readable<DayPlannerSettings>;
 }
 
@@ -28,11 +30,7 @@ export function createEditHandlers({
   settings,
 }: UseEditHandlersProps) {
   function handleContainerMouseDown() {
-    const newTask = createTask(
-      day,
-      get(cursorMinutes),
-      get(settings).taskStatusOnCreation,
-    );
+    const newTask = createTask(day, get(cursorMinutes), get(settings));
 
     startEdit({
       task: { ...newTask, isGhost: true },
@@ -41,12 +39,12 @@ export function createEditHandlers({
     });
   }
 
-  function handleResizerMouseDown(task: Task, mode: EditMode) {
+  function handleResizerMouseDown(task: WithTime<LocalTask>, mode: EditMode) {
     startEdit({ task, mode, day });
   }
 
-  async function handleTaskMouseUp(task: UnscheduledTask) {
-    if (get(editOperation)) {
+  async function handleTaskMouseUp(task: LocalTask) {
+    if (get(editOperation) || !task.location) {
       return;
     }
 
@@ -54,17 +52,17 @@ export function createEditHandlers({
     await obsidianFacade.revealLineInFile(path, position?.start?.line);
   }
 
-  // todo: remove
-  function handleGripMouseDown(task: Task, mode: EditMode) {
+  function handleGripMouseDown(task: WithTime<LocalTask>, mode: EditMode) {
     startEdit({ task, mode, day });
   }
 
   // todo: fix
-  function handleUnscheduledTaskGripMouseDown(task: UnscheduledTask) {
+  function handleUnscheduledTaskGripMouseDown(task: LocalTask) {
     const withAddedTime = {
       ...task,
       startMinutes: get(cursorMinutes),
       // todo: add a proper fix
+      //  in what case does a task not have a location?
       startTime: task.location
         ? getDateFromPath(task.location.path, "day") || window.moment()
         : window.moment(),

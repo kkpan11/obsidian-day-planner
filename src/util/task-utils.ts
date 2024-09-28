@@ -1,24 +1,30 @@
-import { isEmpty } from "lodash/fp";
+import { flow, isEmpty } from "lodash/fp";
 import type { Moment } from "moment";
 import { get } from "svelte/store";
 
-import { defaultDurationMinutes } from "../constants";
 import { settings } from "../global-store/settings";
+import { replaceOrPrependTimestamp } from "../parser/parser";
 import {
   checkboxRegExp,
   keylessScheduledPropRegExp,
-  listTokenRegExp,
+  listTokenWithSpacesRegExp,
+  looseTimestampAtStartOfLineRegExp,
   scheduledPropRegExp,
   shortScheduledPropRegExp,
-  timestampRegExp,
 } from "../regexp";
-import { Task } from "../types";
+import type { DayPlannerSettings } from "../settings";
+import {
+  isRemote,
+  type LocalTask,
+  type Task,
+  type WithTime,
+} from "../task-types";
 
 import { getListTokens } from "./dataview";
 import { getId } from "./id";
 import { addMinutes, minutesToMoment, minutesToMomentOfDay } from "./moment";
 
-export function isEqualTask(a: Task, b: Task) {
+export function isEqualTask(a: WithTime<LocalTask>, b: WithTime<LocalTask>) {
   return (
     a.id === b.id &&
     a.startMinutes === b.startMinutes &&
@@ -40,24 +46,42 @@ export function getEndTime(task: {
   return task.startTime.clone().add(task.durationMinutes, "minutes");
 }
 
-export function getRenderKey(task: Task) {
-  return `${task.startMinutes} ${getEndMinutes(task)} ${task.text} ${
-    task.isGhost ?? ""
-  }`;
+function isScheduled<T extends object>(task: T): task is WithTime<T> {
+  return Object.hasOwn(task, "startMinutes");
 }
 
-export function getNotificationKey(task: Task) {
+export function getRenderKey(task: WithTime<Task> | Task) {
+  const key: string[] = [];
+
+  if (isScheduled(task)) {
+    key.push(String(task.startMinutes), String(getEndMinutes(task)));
+  }
+
+  if (isRemote(task)) {
+    key.push(task.calendar.name, task.summary);
+  } else {
+    key.push(task.text, String(task.isGhost ? "ghost" : ""));
+  }
+
+  return key.join("::");
+}
+
+export function getNotificationKey(task: WithTime<Task>) {
+  if (isRemote(task)) {
+    return `${task.calendar.name}::${task.startMinutes}:${task.durationMinutes}::${task.summary}`;
+  }
+
   return `${task.location?.path ?? "blank"}::${task.startMinutes}::${
     task.durationMinutes
   }::${task.text}`;
 }
 
-export function copy(task: Task): Task {
+export function copy(task: WithTime<LocalTask>): WithTime<LocalTask> {
   return {
     ...task,
     id: getId(),
     isGhost: true,
-    location: { ...task.location },
+    location: task.location && { ...task.location },
   };
 }
 
@@ -76,19 +100,24 @@ export function areValuesEmpty(record: Record<string, [] | object>) {
   return Object.values(record).every(isEmpty);
 }
 
-// todo: confusing. Do not mix up parsed and updated props
-// todo: add replaceTimestamp()
-function taskLineToString(task: Task) {
-  const firstLineText = removeTimestamp(
-    removeListTokens(getFirstLine(task.text)),
-  );
+function taskLineToString(task: WithTime<LocalTask>) {
+  const firstLine = removeListTokens(getFirstLine(task.text));
 
-  return `${getListTokens(task)} ${createTimestamp(
+  const updatedTimestamp = createTimestamp(
     task.startMinutes,
     task.durationMinutes,
     get(settings).timestampFormat,
-  )} ${firstLineText}
-${getLinesAfterFirst(task.text)}`;
+  );
+  const listTokens = getListTokens(task);
+  const updatedFirstLineText = replaceOrPrependTimestamp(
+    firstLine,
+    updatedTimestamp,
+  );
+
+  const otherLines = getLinesAfterFirst(task.text);
+
+  return `${listTokens} ${updatedFirstLineText}
+${otherLines}`;
 }
 
 export function updateScheduledPropInText(text: string, dayKey: string) {
@@ -104,11 +133,14 @@ export function updateScheduledPropInText(text: string, dayKey: string) {
   return `${text} ⏳ ${dayKey}`;
 }
 
-export function updateTaskText(task: Task) {
+export function updateTaskText(task: WithTime<LocalTask>) {
   return { ...task, text: taskLineToString(task) };
 }
 
-export function updateTaskScheduledDay(task: Task, dayKey: string) {
+export function updateTaskScheduledDay(
+  task: WithTime<LocalTask>,
+  dayKey: string,
+) {
   return {
     ...task,
     text: `${updateScheduledPropInText(getFirstLine(task.text), dayKey)}
@@ -129,20 +161,19 @@ export function offsetYToMinutes(
 export function createTask(
   day: Moment,
   startMinutes: number,
-  status: string,
-): Task {
+  settings: DayPlannerSettings,
+): WithTime<LocalTask> {
   return {
     id: getId(),
     startMinutes,
-    durationMinutes: defaultDurationMinutes,
+    durationMinutes: settings.defaultDurationMinutes,
     text: "New item",
     startTime: minutesToMomentOfDay(startMinutes, day),
     symbol: "-",
-    status,
-    placing: {
-      widthPercent: 100,
-      xOffsetPercent: 0,
-    },
+    status:
+      settings.eventFormatOnCreation === "task"
+        ? settings.taskStatusOnCreation
+        : undefined,
   };
 }
 
@@ -150,24 +181,27 @@ export function getFirstLine(text: string) {
   return text.split("\n")[0];
 }
 
+export function getOneLineSummary(task: Task) {
+  if (isRemote(task)) {
+    return task.summary;
+  }
+
+  return flow(
+    removeListTokens,
+    removeTimestampFromStart,
+  )(getFirstLine(task.text));
+}
+
 export function getLinesAfterFirst(text: string) {
   return text.split("\n").slice(1).join("\n");
 }
 
-export function removeTimestamp(text: string) {
-  const match = timestampRegExp.exec(text.trim());
-
-  if (!match) {
-    return text;
-  }
-
-  const {
-    groups: { text: textWithoutTimestamp },
-  } = match;
-
-  return textWithoutTimestamp;
+export function removeListTokens(text: string) {
+  return text
+    .replace(listTokenWithSpacesRegExp, "")
+    .replace(checkboxRegExp, "");
 }
 
-export function removeListTokens(text: string) {
-  return text.replace(listTokenRegExp, "").replace(checkboxRegExp, "");
+export function removeTimestampFromStart(text: string) {
+  return text.replace(looseTimestampAtStartOfLineRegExp, "");
 }

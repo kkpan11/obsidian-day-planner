@@ -1,13 +1,14 @@
 <script lang="ts">
-  import { Moment } from "moment";
+  import type { Moment } from "moment";
   import { OverlayScrollbarsComponent } from "overlayscrollbars-svelte";
   import { getContext } from "svelte";
 
   import { obsidianContext } from "../../constants";
   import { settings } from "../../global-store/settings";
-  import type { ObsidianContext } from "../../types";
-  
-import UnscheduledTimeBlock from "./unscheduled-time-block.svelte";
+  import { isLocal } from "../../task-types";
+  import { type ObsidianContext } from "../../types";
+
+  import UnscheduledTimeBlock from "./unscheduled-time-block.svelte";
 
   export let day: Moment;
 
@@ -29,13 +30,16 @@ import UnscheduledTimeBlock from "./unscheduled-time-block.svelte";
     options={{ scrollbars: { theme: "os-theme-custom" } }}
   >
     {#each $displayedTasks.noTime as task}
-      <UnscheduledTimeBlock
-        onGripMouseDown={handleUnscheduledTaskGripMouseDown}
-        onMouseUp={() => {
-          handleTaskMouseUp(task);
-        }}
-        {task}
-      />
+      <!--    TODO: handle all day events here-->
+      {#if isLocal(task)}
+        <UnscheduledTimeBlock
+          onGripMouseDown={handleUnscheduledTaskGripMouseDown}
+          onMouseUp={() => {
+            handleTaskMouseUp(task);
+          }}
+          {task}
+        />
+      {/if}
     {/each}
   </OverlayScrollbarsComponent>
 {/if}

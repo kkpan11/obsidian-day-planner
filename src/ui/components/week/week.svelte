@@ -1,18 +1,14 @@
 <script lang="ts">
-  import { Moment } from "moment";
+  import type { Moment } from "moment";
   import { getContext } from "svelte";
-  import { Writable } from "svelte/store";
+  import type { Writable } from "svelte/store";
 
-  import {
-    dateRangeContextKey,
-    obsidianContext,
-  } from "../../../constants";
+  import { dateRangeContextKey, obsidianContext } from "../../../constants";
   import { isToday } from "../../../global-store/current-time";
   import { getVisibleHours } from "../../../global-store/derived-settings";
   import { settings } from "../../../global-store/settings";
   import type { ObsidianContext } from "../../../types";
   import ControlButton from "../control-button.svelte";
-  import GlobalHandlers from "../global-handlers.svelte";
   import ResizeHandle from "../resize-handle.svelte";
   import ResizeableBox from "../resizeable-box.svelte";
   import Ruler from "../ruler.svelte";
@@ -33,8 +29,6 @@
   }
 </script>
 
-<GlobalHandlers />
-
 <div bind:this={weekHeaderRef} class="week-header">
   <div class="header-row day-buttons">
     <div class="corner"></div>
@@ -51,17 +45,16 @@
     {/each}
   </div>
 
-  <ResizeableBox
-    classNames="header-row"
-    let:startEdit
-  >
-    <div class="corner"></div>
-    {#each $dateRange as day}
-      <div class="header-cell">
-        <UnscheduledTaskContainer {day} />
-      </div>
-    {/each}
-    <ResizeHandle on:mousedown={startEdit} />
+  <ResizeableBox classNames="header-row">
+    {#snippet children(startEdit)}
+      <div class="corner"></div>
+      {#each $dateRange as day}
+        <div class="header-cell">
+          <UnscheduledTaskContainer {day} />
+        </div>
+      {/each}
+      <ResizeHandle on:mousedown={startEdit} />
+    {/snippet}
   </ResizeableBox>
 </div>
 
